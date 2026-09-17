@@ -356,15 +356,48 @@ python scripts/ingest.py data/documents --recreate
 python scripts/ask.py "缸盖热应力分析中的热边界条件是什么？" --no-gen
 ```
 
-## 检索 + LLM
+## 检索 + LLM（自动复用后台模型）
+
+提问命令不变，不需要手动启动服务，也不需要 `--server`：
 
 ```bash
 python scripts/ask.py "缸盖热应力分析中的热边界条件是什么？"
+python scripts/ask.py "如何设置约束？" --top-k 3
 ```
+
+首次提问会在后台启动一个仅监听 `127.0.0.1` 的服务，加载 Embedding、知识库和 LLM，并等待就绪；以后每次运行命令都复用该服务中的模型。CLI 退出或终端关闭不会主动停止后台服务。模型持续占用内存/显存，电脑重启或服务停止后，下次提问会重新加载一次。每个问题仍独立回答，不保存对话历史。
+
+`--no-gen` 保留原来的本地检索路径，不启动后台服务，也不加载 LLM（仍需本地 Embedding 和知识库）。
+
+停止后台服务并释放模型资源：
+
+```bash
+python scripts/ask.py --stop-server
+```
+
+服务正在生成时会先等待请求结束；服务仍在初次加载时，请等就绪后再停止。如果加载卡住，日志会记录服务 PID，可在系统任务管理器中确认并结束对应的 `scripts/serve.py` 进程。修改 `.env`、模型、代码或在其他进程中重新入库后，先停止服务，下次提问会使用新配置和知识库重新启动。已有的长驻检索器可能缓存检索数据，因此入库后建议重启。
+
+可选 `.env` 配置（秒）：
+
+```env
+CAE_SERVICE_PORT=8000
+CAE_SERVICE_START_TIMEOUT=600
+CAE_SERVICE_REQUEST_TIMEOUT=600
+```
+
+启动或请求失败会显示错误，服务日志默认在 `.cache/ask-service-8000.log`（随 `CAE_CACHE_DIR` 和端口变化）。启动等待超时不会杀掉正在加载的服务，可查看日志后重试；请求超时不会自动重复生成。日志为追加写入，长期使用可在停止服务后清理。
+
+如果 8000 端口已被其他服务占用，请更换 `CAE_SERVICE_PORT`；程序不会停止未知进程。特别是使用本地 vLLM 等 API provider 时，CAE 服务与模型 API 必须使用不同端口。手动启动的旧 Web 服务没有自动管理接口，请先手动关闭它，再通过 `ask.py` 启动托管服务。
+
+> 后台服务使用启动它的 Python 环境和工作目录。请从仓库根目录运行命令；改用另一个 Python 环境前，先用原环境停止服务。
 
 ---
 
 # 10. 启动 Web/API
+
+通过 `ask.py` 自动启动的后台服务也提供 Web 页面和下列 API，可直接打开 `http://127.0.0.1:8000`，无需再启动一份。不要同时运行两个服务占用同一个端口。
+
+如果只想手动运行 Web/API，可继续使用以下方式（该模式不受 `ask.py --stop-server` 管理，模型按需加载，使用 `Ctrl+C` 停止）：
 
 ```bash
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000

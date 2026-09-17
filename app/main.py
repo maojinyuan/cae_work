@@ -1,6 +1,7 @@
 """CAE AI Platform FastAPI 服务。"""
 from __future__ import annotations
 import shutil
+from threading import Lock
 from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,9 @@ from pydantic import BaseModel
 from core import config
 from knowledge.rag import get_pipeline
 from knowledge.vectorstore import get_store
+
+# ponytail: serialize generation for a single local GPU; use batching if throughput matters.
+_query_lock = Lock()
 
 APP_DIR = Path(__file__).resolve().parent
 STATIC_DIR = APP_DIR / "static"
@@ -37,7 +41,8 @@ def query(request: QueryRequest):
     question = request.question.strip()
     if not question:
         raise HTTPException(400, "question 不能为空")
-    return get_pipeline().ask(question, request.top_k)
+    with _query_lock:
+        return get_pipeline().ask(question, request.top_k)
 
 
 @app.post("/api/search")

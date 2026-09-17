@@ -33,6 +33,11 @@ CHROMA_DIR = STORAGE_DIR / "chroma"
 CACHE_DIR = _path("CAE_CACHE_DIR", PROJECT_ROOT / ".cache")
 MODEL_DIR = _path("CAE_MODEL_DIR", PROJECT_ROOT / "artifacts" / "models")
 
+# -------------------- Auto-started local CLI service --------------------
+SERVICE_PORT = int(os.getenv("CAE_SERVICE_PORT", "8000"))
+SERVICE_START_TIMEOUT = float(os.getenv("CAE_SERVICE_START_TIMEOUT", "600"))
+SERVICE_REQUEST_TIMEOUT = float(os.getenv("CAE_SERVICE_REQUEST_TIMEOUT", "600"))
+
 # -------------------- LLM --------------------
 LLM_PROVIDER = os.getenv("CAE_LLM_PROVIDER", "local").lower()  # local | api
 LLM_MODEL_PATH = _path("CAE_LLM_MODEL_PATH", MODEL_DIR / "llm" / "YOUR_LLM_MODEL")
