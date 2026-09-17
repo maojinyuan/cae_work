@@ -348,6 +348,28 @@ python scripts/ingest.py data/documents --recreate
 
 # 9. 查询
 
+## 推荐：常驻服务，避免每次提问加载权重
+
+直接运行 `python scripts/ask.py "问题"` 会创建新的 Python 进程，回答后退出并释放模型；下次运行必须重新加载。模型文件已经在磁盘上，不代表权重仍驻留在内存/显存中。
+
+先在一个终端启动服务并保持运行：
+
+```bash
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
+```
+
+然后在另一个终端提问：
+
+```bash
+python scripts/ask.py "缸盖热应力分析中的热边界条件是什么？" --server http://127.0.0.1:8000
+python scripts/ask.py "如何设置约束？" --server http://127.0.0.1:8000
+python scripts/ask.py "温度边界条件" --server http://127.0.0.1:8000 --no-gen --top-k 3
+```
+
+`--server` 连接本项目的 CAE API，客户端不加载 LLM、Embedding 或本地知识库。服务在首次需要时加载模型，后续问题复用同一 pipeline 中的模型；未检索到资料时不会加载 LLM。问题仍独立回答，不保存多轮对话历史。
+
+保持单 worker，且不要使用 `--reload`：多个 worker 各自加载模型，自动重启会重新加载。服务停止或电脑重启后，下一次仍需要加载一次。首次加载较慢，CLI 请求超时为 600 秒；请求失败会报错退出，不会退回本地加载。原来的不带 `--server` 的本地单次模式继续可用。
+
 ## 只看检索结果
 
 建议先这样调 RAG：
